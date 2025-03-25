@@ -3,7 +3,6 @@ import numpy as np
 
 from utils import price_to_class
 
-
 def plot_training(train_results: tuple[float, float], val_results: tuple[float, float]):
     train_losses, train_accs = zip(*train_results)
     val_losses, val_accs = zip(*val_results)
@@ -41,6 +40,11 @@ def plot_pred_acc(y_test: np.ndarray, y_pred: np.ndarray):
         fp = np.sum((pred_classes == c) & (true_classes != c))
         TP.append(tp)
         FP.append(fp)
+
+    # print accuracy
+    print(f"Average class accuracy: {np.mean([tp / (tp + fp) for tp, fp in zip(TP, FP)]):.2f}")
+    for c, tp, fp in zip(classes, TP, FP):
+        print(f"\"{labels[c]}\" accuracy: {tp / (tp + fp):.2f}")
 
     bar_width = 0.35
     r1 = np.arange(len(classes))
