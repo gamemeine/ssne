@@ -55,11 +55,9 @@ class Trainer:
                 X, y = X.to(self.device), y.to(self.device)
 
                 preds = self.model(X)
-                # Obliczenie straty:
                 loss = self.criterion(preds, y)
                 total_loss += loss.item()
 
-                # Predykcja: liczba progów przekroczonych (czyli suma wartości binarnych)
                 predictions = (preds > 0.5).sum(dim=1)
                 total_correct += (predictions == y).sum().item()
                 total_samples += y.size(0)

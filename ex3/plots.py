@@ -51,6 +51,8 @@ def plot_pred_acc(y_test: np.ndarray, y_pred: np.ndarray):
     classes = [0, 1, 2]
     labels = ["cheap", "average", "expensive"]
 
+    class_counts = np.bincount(y_test)
+
     TP = []
     FP = []
     for c in classes:
@@ -60,9 +62,14 @@ def plot_pred_acc(y_test: np.ndarray, y_pred: np.ndarray):
         FP.append(fp)
 
     # print accuracy
-    print(f"Average class accuracy: {np.mean([tp / (tp + fp) for tp, fp in zip(TP, FP)]):.2f}")
-    for c, tp, fp in zip(classes, TP, FP):
-        print(f"\"{labels[c]}\" accuracy: {tp / (tp + fp):.2f}")
+    class_accs = []
+    for c, count, tp in zip(classes, class_counts, TP):
+        class_acc = tp / count
+        class_accs.append(class_acc)
+
+        print(f"Class {c} accuracy: {class_acc:.2f}")
+    
+    print(f"Average class accuracy: {np.mean(class_accs):.2f}")
 
     bar_width = 0.35
     r1 = np.arange(len(classes))
@@ -78,4 +85,45 @@ def plot_pred_acc(y_test: np.ndarray, y_pred: np.ndarray):
     plt.title("TP and FP for each Price Class")
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.6)
+    plt.show()
+
+
+def plot_acc_over_thresholds(y_val: np.ndarray, y_pred: np.ndarray):
+    thresholds = np.linspace(0, 1, 100)
+
+    acc_class0 = []
+    acc_class1 = []
+    acc_class2 = []
+
+    for t in thresholds:
+        pred_class = ((y_pred[:, 0] >= t).astype(
+            int) + (y_pred[:, 1] >= t).astype(int))
+
+        mask0 = (y_val == 0)
+        mask1 = (y_val == 1)
+        mask2 = (y_val == 2)
+
+        acc0 = np.mean(pred_class[mask0] == y_val[mask0]
+                       ) if np.any(mask0) else np.nan
+        acc1 = np.mean(pred_class[mask1] == y_val[mask1]
+                       ) if np.any(mask1) else np.nan
+        acc2 = np.mean(pred_class[mask2] == y_val[mask2]
+                       ) if np.any(mask2) else np.nan
+
+        acc_class0.append(acc0)
+        acc_class1.append(acc1)
+        acc_class2.append(acc2)
+
+    avg_acc = np.nanmean(np.array([acc_class0, acc_class1, acc_class2]), axis=0)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(thresholds, acc_class0, label='Class 0 Accuracy')
+    plt.plot(thresholds, acc_class1, label='Class 1 Accuracy')
+    plt.plot(thresholds, acc_class2, label='Class 2 Accuracy')
+    plt.plot(thresholds, avg_acc, label='Average Accuracy',linestyle='--', color='black')
+    plt.xlabel("Threshold")
+    plt.ylabel("Accuracy")
+    plt.title("Per-Class Accuracy over Thresholds")
+    plt.legend()
+    plt.grid(True)
     plt.show()
