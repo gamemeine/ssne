@@ -2,12 +2,6 @@ import torch
 from torch.optim import lr_scheduler
 from plots import plot_training
 
-def pred_to_class(pred, threshold=0.5):
-    if isinstance(pred, torch.Tensor):
-        return (pred > threshold).sum(dim=1)
-    else:
-        return (pred > threshold).sum(axis=1)
-
 class Trainer:
     def __init__(self, model):
         self.model = model

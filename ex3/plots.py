@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 from matplotlib import pyplot as plt
 import numpy as np
 
@@ -23,6 +24,28 @@ def plot_training(train_results: tuple[float, float], val_results: tuple[float, 
 
     plt.tight_layout()
     plt.show()
+
+def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray):
+    classes = [0, 1, 2]
+    labels = ["cheap", "average", "expensive"]
+
+    confusion_matrix = np.zeros((3, 3))
+    for true, pred in zip(y_true, y_pred):
+        confusion_matrix[true, pred] += 1
+
+    plt.figure(figsize=(8, 6))
+    plt.imshow(confusion_matrix, cmap='Blues')
+    plt.colorbar()
+    plt.xticks(classes, labels)
+    plt.yticks(classes, labels)
+    plt.xlabel("Predicted")
+    plt.ylabel("True")
+    plt.title("Confusion Matrix")
+    for i in range(3):
+        for j in range(3):
+            plt.text(j, i, int(confusion_matrix[i, j]), ha='center', va='center', color='black')
+    plt.show()
+
 
 def plot_pred_acc(y_test: np.ndarray, y_pred: np.ndarray):
     classes = [0, 1, 2]
