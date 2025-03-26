@@ -1,3 +1,4 @@
+from sklearn.preprocessing import PolynomialFeatures
 from torch.utils.data import WeightedRandomSampler
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ def load_data(path: str, target: str = None) -> pd.DataFrame:
         X, y = df, None
         return X, y
     
-    X, y = df.drop('SalePrice', axis=1), df['SalePrice']
+    X, y = df.drop('SalePrice', axis=1), df['SalePrice'].map(price_to_class)
     return X, y
 
 def index_encode(df: pd.DataFrame, column: str, mappings: dict = None) -> tuple[pd.DataFrame, dict]:
@@ -44,6 +45,25 @@ def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
     encoded_df.drop(column, axis=1, inplace=True)
 
     return encoded_df
+
+
+def polynomial_expansion(df: pd.DataFrame, columns: list, degree: int = 2) -> pd.DataFrame:
+    df_expanded = df.copy()
+    subset = df_expanded[columns].values
+
+    poly = PolynomialFeatures(
+        degree=degree,
+        interaction_only=False,
+        include_bias=False
+    )
+    
+    subset_poly = poly.fit_transform(subset)
+    new_col_names = poly.get_feature_names_out(columns)
+    df_poly = pd.DataFrame(subset_poly, columns=new_col_names, index=df_expanded.index)
+    df_expanded.drop(columns=columns, inplace=True)
+    df_expanded = pd.concat([df_expanded, df_poly], axis=1)
+
+    return df_expanded
 
 
 def to_dataloader(X: np.ndarray, y: np.ndarray, batch_size: int = 32, class_weights: dict = None) -> DataLoader:

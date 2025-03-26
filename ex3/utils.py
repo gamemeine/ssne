@@ -5,4 +5,3 @@ def price_to_class(price: float) -> int:
         return 1  # average
     else:
         return 2  # expensive
-        

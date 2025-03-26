@@ -1,8 +1,12 @@
-import numpy as np
 import torch
 from torch.optim import lr_scheduler
 from plots import plot_training
-from utils import price_to_class
+
+def pred_to_class(pred, threshold=0.5):
+    if isinstance(pred, torch.Tensor):
+        return (pred > threshold).sum(dim=1)
+    else:
+        return (pred > threshold).sum(axis=1)
 
 class Trainer:
     def __init__(self, model):
@@ -33,7 +37,6 @@ class Trainer:
             X, y = X.to(self.device), y.to(self.device)
 
             pred = self.model(X)
-            y = y.view_as(pred)
 
             loss = self.criterion(pred, y)
             loss.backward()
@@ -45,30 +48,30 @@ class Trainer:
 
         return total_loss/total_batches
 
-
     def evaluate(self, dataloader):
         self.model.eval()
 
         total_loss = 0
         total_correct = 0
+        total_samples = 0
         total_batches = len(dataloader)
 
         with torch.no_grad():
             for X, y in dataloader:
                 X, y = X.to(self.device), y.to(self.device)
 
-                pred = self.model(X)
-                y = y.view_as(pred)
+                preds = self.model(X)
+                # Obliczenie straty:
+                loss = self.criterion(preds, y)
+                total_loss += loss.item()
 
-                total_loss += self.criterion(pred, y).item()
+                # Predykcja: liczba progów przekroczonych (czyli suma wartości binarnych)
+                predictions = (preds > 0.5).sum(dim=1)
+                total_correct += (predictions == y).sum().item()
+                total_samples += y.size(0)
 
-                pred_np = pred.cpu().numpy()
-                y_np = y.cpu().numpy()
-
-                total_correct += np.sum([price_to_class(pred) == price_to_class(y) for pred, y in zip(pred_np, y_np)])
-
-        return total_loss/total_batches, total_correct/len(dataloader.dataset)
-
+        accuracy = total_correct / total_samples
+        return total_loss/total_batches, accuracy
 
     def fit(self, train_dl, val_dl, epochs):
         train_results, val_results = [], []
