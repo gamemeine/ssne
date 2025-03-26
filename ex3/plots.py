@@ -63,10 +63,10 @@ def plot_pred_acc(y_test: np.ndarray, y_pred: np.ndarray):
 
     # print accuracy
     class_accs = []
-    for c, count, tp in zip(classes, class_counts, TP):
-        class_acc = tp / count
+    for c in classes:
+        class_records = y_test == c
+        class_acc = np.mean(y_pred[class_records] == c)
         class_accs.append(class_acc)
-
         print(f"Class {c} accuracy: {class_acc:.2f}")
     
     print(f"Average class accuracy: {np.mean(class_accs):.2f}")
