@@ -14,7 +14,7 @@ def load_data(path: str, target: str = None) -> pd.DataFrame:
         X, y = df, None
         return X, y
     
-    X, y = df.drop('SalePrice', axis=1), df['SalePrice'].map(price_to_class)
+    X, y = df.drop(target, axis=1), df[target].map(price_to_class)
     return X, y
 
 def index_encode(df: pd.DataFrame, column: str, mappings: dict = None) -> tuple[pd.DataFrame, dict]:
