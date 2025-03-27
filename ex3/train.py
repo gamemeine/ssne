@@ -1,5 +1,8 @@
+import numpy as np
+import pandas as pd
 import torch
 from torch.optim import lr_scheduler
+from utils import pred_to_class
 from plots import plot_training
 
 class Trainer:
@@ -91,3 +94,12 @@ def predict(model, X, device):
         X = torch.tensor(X, dtype=torch.float32).to(device)
         pred = model(X)
         return pred.cpu().numpy()
+
+def save_results(model, X, thresholds = (0.5, 0.5) , device = "cpu", path = 'pred.csv'):
+    predictions = predict(model, X, device)
+    classes = pred_to_class(predictions, thresholds)
+
+    results = pd.DataFrame(classes)
+    results.to_csv(path, index=False, header=False)
+
+    return results
