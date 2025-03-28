@@ -75,7 +75,7 @@ class Trainer:
         accuracy = calc_accuracy(y_pred, y_true)
         return total_loss/total_batches, accuracy
 
-    def fit(self, train_dl, val_dl, epochs):
+    def fit(self, train_dl, val_dl, epochs, print_progress=True):
         train_results, val_results = [], []
 
         for t in range(epochs):
@@ -90,7 +90,8 @@ class Trainer:
             train_results.append((avg_train_loss, train_acc))
             val_results.append((avg_val_loss, val_acc))
 
-            print(f"Epoch {t+1:2}/{epochs} - Train Loss: {avg_train_loss:4.2f} - Val Loss: {avg_val_loss:4.2f} - Val Acc: {val_acc:2.4f} - LR: {current_lr}")
+            if print_progress:
+                print(f"Epoch {t+1:2}/{epochs} - Train Loss: {avg_train_loss:4.2f} - Val Loss: {avg_val_loss:4.2f} - Val Acc: {val_acc:2.4f} - LR: {current_lr}")
 
         plot_training(train_results, val_results)
 
