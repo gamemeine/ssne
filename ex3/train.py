@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.optim import lr_scheduler
-from utils import pred_to_class
+from utils import calc_accuracy, pred_to_class
 from plots import plot_training
 
 class Trainer:
@@ -13,13 +13,16 @@ class Trainer:
         self.model.to(device)
         self.device = device
     
-    def compile(self, optimizer, criterion):
-        self.set_optimizer(optimizer)
+    def compile(self, optimizer, criterion, scheduler=None):
+        self.set_optimizer(optimizer, scheduler)
         self.set_criterion(criterion)
 
-    def set_optimizer(self, optimizer):
+    def set_optimizer(self, optimizer, scheduler=None):
         self.optimizer = optimizer
-        self.scheduler = lr_scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.5, patience=10)
+        if lr_scheduler is not None:
+            self.scheduler = scheduler
+        else:
+            self.scheduler = scheduler.ReduceLROnPlateau(self.optimizer, mode='min', factor=0.5, patience=10)
 
     def set_criterion(self, criterion):
         self.criterion = criterion
@@ -49,9 +52,11 @@ class Trainer:
         self.model.eval()
 
         total_loss = 0
-        total_correct = 0
         total_samples = 0
         total_batches = len(dataloader)
+
+        y_pred = np.array([])
+        y_true = np.array([])
 
         with torch.no_grad():
             for X, y in dataloader:
@@ -62,10 +67,12 @@ class Trainer:
                 total_loss += loss.item()
 
                 predictions = (preds > 0.5).sum(dim=1)
-                total_correct += (predictions == y).sum().item()
+                y_pred = np.concatenate((y_pred, predictions.cpu().numpy()))
+                y_true = np.concatenate((y_true, y.cpu().numpy()))
+                
                 total_samples += y.size(0)
 
-        accuracy = total_correct / total_samples
+        accuracy = calc_accuracy(y_pred, y_true)
         return total_loss/total_batches, accuracy
 
     def fit(self, train_dl, val_dl, epochs):

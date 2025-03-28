@@ -31,17 +31,20 @@ def index_encode(df: pd.DataFrame, column: str, mappings: dict = None) -> tuple[
         mappings = {value: index for index, value in enumerate(unique_values)}
 
     encoded_df = df.copy()
-    encoded_df[column] = encoded_df[column].map(mappings)
+    categorical_column = encoded_df[column]
+    encoded_df = encoded_df.drop(column, axis=1)
+    encoded_df[column] = categorical_column.map(mappings)
 
     return encoded_df, mappings
 
 def one_hot_encode(df: pd.DataFrame, column: str) -> pd.DataFrame:
     if not column in df.columns:
         return df
+    
+    df_copy = df.copy()
+    cols = pd.get_dummies(df_copy[column], prefix=column)
 
-    cols = pd.get_dummies(df[column], prefix=column)
-
-    encoded_df = pd.concat([df, cols], axis=1)
+    encoded_df = pd.concat([df_copy, cols], axis=1)
     encoded_df.drop(column, axis=1, inplace=True)
 
     return encoded_df

@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 
@@ -19,3 +20,11 @@ def pred_to_class(pred, threshold=(0.5, 0.5)):
     target_2 = (probs[:, 1] >= threshold[1]).int()
 
     return target_1 + target_2
+
+
+def calc_accuracy(y_pred: np.ndarray, y_true: np.ndarray) -> float:
+    accuracies = []
+    for i in range(3):
+        class_correct = (y_pred == y_true)[y_true == i].sum()
+        accuracies.append(class_correct/(y_true == i).sum())
+    return (np.mean(accuracies))
