@@ -2,6 +2,27 @@ import matplotlib.pyplot as plt
 from matplotlib import pyplot as plt
 import numpy as np
 
+
+def plot_results_over_params(param_values: np.ndarray, results: np.ndarray, param_name: str):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    losses, accs = results[:, 0], results[:, 1]
+
+    axes[0].plot(param_values, accs)
+    axes[0].set_xlabel(param_name)
+    axes[0].set_ylabel('Accuracy')
+    axes[0].set_title('Accuracy over ' + param_name)
+    axes[0].tick_params(axis='y')
+
+    axes[1].plot(param_values, losses)
+    axes[1].set_xlabel(param_name)
+    axes[1].set_ylabel('Loss')
+    axes[1].set_title('Loss over ' + param_name)
+    axes[1].tick_params(axis='y')
+
+    fig.tight_layout()
+    plt.show()
+
 def plot_training(train_results: tuple[float, float], val_results: tuple[float, float]):
     train_losses, train_accs = zip(*train_results)
     val_losses, val_accs = zip(*val_results)

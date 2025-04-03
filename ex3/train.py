@@ -8,6 +8,7 @@ from plots import plot_training
 class Trainer:
     def __init__(self, model):
         self.model = model
+        self.verbose = True
   
     def to_device(self, device):
         self.model.to(device)
@@ -26,6 +27,9 @@ class Trainer:
 
     def set_criterion(self, criterion):
         self.criterion = criterion
+
+    def set_verbose(self, verbose):
+        self.verbose = verbose
 
     def train(self, dataloader):
         self.model.train()
@@ -90,9 +94,13 @@ class Trainer:
             train_results.append((avg_train_loss, train_acc))
             val_results.append((avg_val_loss, val_acc))
 
-            print(f"Epoch {t+1:2}/{epochs} - Train Loss: {avg_train_loss:4.2f} - Val Loss: {avg_val_loss:4.2f} - Val Acc: {val_acc:2.4f} - LR: {current_lr}")
+            if self.verbose:
+                print(f"Epoch {t+1:2}/{epochs} - Train Loss: {avg_train_loss:4.2f} - Val Loss: {avg_val_loss:4.2f} - Val Acc: {val_acc:2.4f} - LR: {current_lr}")
 
-        plot_training(train_results, val_results)
+        if self.verbose:
+            plot_training(train_results, val_results)
+
+        return val_results[-1]
 
 
 def predict(model, X, device):
