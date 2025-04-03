@@ -79,7 +79,7 @@ class Trainer:
         accuracy = calc_accuracy(y_pred, y_true)
         return total_loss/total_batches, accuracy
 
-    def fit(self, train_dl, val_dl, epochs):
+    def fit(self, train_dl, val_dl, epochs, print_progress=True):
         train_results, val_results = [], []
 
         for t in range(epochs):
