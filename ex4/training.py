@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from tqdm import tqdm
 
 
@@ -18,15 +17,15 @@ def calculate_accuracy(correct_preds, total_preds, total_classes=50):
 
 
 class Trainer:
-    def __init__(self, model, train_dl, val_dl, device='cpu', lr=1e-3, total_classes=50):
+    def __init__(self, model, train_dl, val_dl, optimizer, device='cpu', total_classes=50):
         self.model = model.to(device)
         self.train_dl = train_dl
         self.val_dl = val_dl
         self.device = device
         self.total_classes = total_classes
 
+        self.optimizer = optimizer
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.Adam(model.parameters(), lr=lr)
 
     def train_step(self, epoch, num_epochs):
         self.model.train()
