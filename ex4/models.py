@@ -41,6 +41,146 @@ class BasicNet(nn.Module):
         x = self.classifier(x)
         return x
 
+class No_PoolNet(nn.Module):
+    def __init__(self, num_classes=50):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=5, padding=1, stride=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(32, 64, kernel_size=5, padding=1, stride=2),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(64, 128, kernel_size=5, padding=1, stride=2),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(128, 256, kernel_size=5, padding=1, stride=2),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+        )
+        output_size_on_feature = self._get_output_size_on_features()
+
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(output_size_on_feature, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            # nn.Linear(256, 256),
+            # nn.ReLU(inplace=True),
+            # nn.Dropout(0.5),
+            nn.Linear(256, num_classes)
+        )
+
+    def _get_output_size_on_features(self):
+        img = torch.zeros(1, 3, 64, 64)
+        size = self.features(img).size()
+        return size[0] * size[1] * size[2] * size[3]
+
+    def forward(self, x):
+        x = self.features(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+class AVGPoolNet_Kernel3(nn.Module):
+    def __init__(self, num_classes=50):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+        )
+        output_size_on_feature = self._get_output_size_on_features()
+
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(output_size_on_feature, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            # nn.Linear(256, 128),
+            # nn.ReLU(inplace=True),
+            # nn.Dropout(0.5),
+            nn.Linear(128, num_classes)
+        )
+
+    def _get_output_size_on_features(self):
+        img = torch.zeros(1, 3, 64, 64)
+        size = self.features(img).size()
+        return size[0] * size[1] * size[2] * size[3]
+
+    def forward(self, x):
+        x = self.features(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+class AVGPoolNet_Kernel5(nn.Module):
+    def __init__(self, num_classes=50):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=5, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+
+            nn.Conv2d(32, 64, kernel_size=5, padding=2),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+
+            nn.Conv2d(64, 128, kernel_size=5, padding=2),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+
+            nn.Conv2d(128, 256, kernel_size=5, padding=2),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(2, 2),
+        )
+        output_size_on_feature = self._get_output_size_on_features()
+
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(output_size_on_feature, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
+            # nn.Linear(256, 128),
+            # nn.ReLU(inplace=True),
+            # nn.Dropout(0.5),
+            nn.Linear(128, num_classes)
+        )
+
+    def _get_output_size_on_features(self):
+        img = torch.zeros(1, 3, 64, 64)
+        size = self.features(img).size()
+        return size[0] * size[1] * size[2] * size[3]
+
+    def forward(self, x):
+        x = self.features(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, downsample=None):
         super(ResidualBlock, self).__init__()
