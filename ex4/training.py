@@ -17,7 +17,7 @@ def calculate_accuracy(correct_preds, total_preds, total_classes=50):
 
 
 class Trainer:
-    def __init__(self, model, train_dl, val_dl, optimizer, device='cpu', total_classes=50):
+    def __init__(self, model, train_dl, val_dl, optimizer, scheduler = None, device='cpu', total_classes=50):
         self.model = model.to(device)
         self.train_dl = train_dl
         self.val_dl = val_dl
@@ -25,6 +25,7 @@ class Trainer:
         self.total_classes = total_classes
 
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.criterion = nn.CrossEntropyLoss()
 
     def train_step(self, epoch, num_epochs):
@@ -81,3 +82,6 @@ class Trainer:
             val_loss, avg_class_acc = self.evaluation_step(epoch, num_epochs)
 
             print(f"Epoch {epoch}/{num_epochs}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Avg Class Accuracy: {avg_class_acc:.4f}")
+
+            if self.scheduler is not None:
+                self.scheduler.step()
