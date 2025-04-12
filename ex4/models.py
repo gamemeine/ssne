@@ -189,7 +189,7 @@ class AVGPoolNet_Kernel3(nn.Module):
             # nn.Linear(256, 128),
             # nn.ReLU(inplace=True),
             # nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
+            nn.Linear(256, num_classes)
         )
 
     def _get_output_size_on_features(self):
@@ -237,7 +237,7 @@ class AVGPoolNet_Kernel5(nn.Module):
             # nn.Linear(256, 128),
             # nn.ReLU(inplace=True),
             # nn.Dropout(0.5),
-            nn.Linear(128, num_classes)
+            nn.Linear(256, num_classes)
         )
 
     def _get_output_size_on_features(self):
