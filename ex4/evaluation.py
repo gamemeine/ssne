@@ -1,6 +1,7 @@
 import torch
 import os
 from PIL import Image
+from tqdm import tqdm
 
 def save_results(model, test_dir, transform, output_file="pred.csv", device="cpu"):
     model.eval()
@@ -10,7 +11,7 @@ def save_results(model, test_dir, transform, output_file="pred.csv", device="cpu
     predictions = []
     filenames = []
 
-    for file in sorted(os.listdir(test_dir)):
+    for file in tqdm(sorted(os.listdir(test_dir)), desc="Processing images"):
         file_path = os.path.join(test_dir, file)
         if os.path.isfile(file_path):
             try:

@@ -77,6 +77,8 @@ class Trainer:
         return val_loss, avg_class_acc
 
     def train(self, num_epochs):
+        best_val_acc = 0.0
+
         for epoch in range(1, num_epochs + 1):
             train_loss = self.train_step(epoch, num_epochs)
             val_loss, avg_class_acc = self.evaluation_step(epoch, num_epochs)
@@ -85,3 +87,8 @@ class Trainer:
 
             if self.scheduler is not None:
                 self.scheduler.step()
+
+            if avg_class_acc > best_val_acc:
+                best_val_acc = avg_class_acc
+                model_name = self.model.__class__.__name__
+                torch.save(self.model.state_dict(), f"./models/{model_name}_best.pth")
