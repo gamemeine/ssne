@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 
 from torch.utils.data import DataLoader
 from utils import denormalize_batch
+from display import plot_images
 
 
 class Trainer:
@@ -13,7 +14,7 @@ class Trainer:
         self.latent_dim = latent_dim
         self.device = device
 
-        self.fixed_noise = torch.randn(16, latent_dim, device=device)
+        self.fixed_noise = torch.randn(10, latent_dim, device=device)
 
     def set_discriminator(self, discriminator, discriminator_optimizer, discriminator_scheduler):
         self.discriminator = discriminator
@@ -96,13 +97,6 @@ class Trainer:
             if epoch % 10 == 0:
                 with torch.no_grad():
                     fake_norm = self.generator(self.fixed_noise).detach().cpu()
-                    fake = denormalize_batch(fake_norm, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-                    fake = torch.clamp(fake, 0.0, 1.0)
+                    fake = denormalize_batch(fake_norm, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]).clamp(0.0, 1.0)
 
-                grid = torchvision.utils.make_grid(fake)
-                grid = grid.permute(1, 2, 0)
-                plt.figure(figsize=(10, 10))
-                plt.title(f"Generations")
-                plt.imshow(grid)
-                plt.axis('off')
-                plt.show()
+                plot_images(list(fake))
