@@ -1,42 +1,52 @@
-import torch
 import torch.nn as nn
 
 
 class Discriminator(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
-        super(Discriminator, self).__init__()
+    def __init__(self):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2, inplace=True),
 
-        self.fc_1 = nn.Linear(input_dim, hidden_dim)
-        self.fc_2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc_out = nn.Linear(hidden_dim, 1)
+            nn.Conv2d(64, 128, 4, 2, 1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
 
-        self.LeakyReLU = nn.LeakyReLU(0.2)
+            nn.Conv2d(128, 256, 4, 2, 1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Flatten(),
+            nn.Linear(256*4*4, 1)
+        )
 
     def forward(self, x):
-        x = torch.flatten(x, 1)
-        x = self.LeakyReLU(self.fc_1(x))
-        x = self.LeakyReLU(self.fc_2(x))
-        x = self.fc_out(x)
-        return x
+        return self.net(x).view(-1)
 
 
 class Generator(nn.Module):
-    def __init__(self, input_size, latent_dim, hidden_dim, output_dim):
-        super(Generator, self).__init__()
+    def __init__(self, latent_dim=100):
+        super().__init__()
+        self.latent_dim = latent_dim
+        # project & reshape into “256×4×4”
+        self.fc = nn.Linear(latent_dim, 256*4*4)
 
-        assert len(input_size) == 3, "Input size must be a tuple of (C, H, W)"
-        self.input_size = input_size
+        self.net = nn.Sequential(
+            # 256×4×4 → 128×8×8
+            nn.ConvTranspose2d(256, 128, 4, 2, 1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
 
-        self.fc_1 = nn.Linear(latent_dim, hidden_dim)
-        self.fc_2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc_3 = nn.Linear(hidden_dim, output_dim)
+            # 128×8×8 → 64×16×16
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
 
-        self.LeakyReLU = nn.LeakyReLU(0.2)
+            # 64×16×16 → 3×32×32
+            nn.ConvTranspose2d(64, 3, 4, 2, 1),
+            nn.Tanh()   # outputs in [–1,+1]
+        )
 
-    def forward(self, x):
-        h = self.LeakyReLU(self.fc_1(x))
-        h = self.LeakyReLU(self.fc_2(h))
-
-        x_hat = torch.tanh(self.fc_3(h))
-        x_hat = x_hat.view([-1, *self.input_size])
-        return x_hat
+    def forward(self, z):
+        x = self.fc(z).view(-1, 256, 4, 4)
+        return self.net(x)
