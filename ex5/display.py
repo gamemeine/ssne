@@ -4,13 +4,13 @@ import numpy as np
 import torch
 
 
-def plot_images(images: list[torch.Tensor]):
+def plot_images(images: list[torch.Tensor], ncols: int = 5):
     count = len(images)
     if count == 0:
         print("No images to display.")
         return
 
-    cols = min(5, count)
+    cols = min(count, ncols)
     rows = math.ceil(count / cols)
 
     plt.figure(figsize=(cols * 2, rows * 2))

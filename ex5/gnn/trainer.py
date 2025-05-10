@@ -1,20 +1,22 @@
 import numpy as np
 import torch
-import torchvision
 import matplotlib.pyplot as plt
-
 from torch.utils.data import DataLoader
+from torch.nn import CrossEntropyLoss
 from utils import denormalize_batch
 from display import plot_images
 
 
 class Trainer:
-    def __init__(self, criterion, latent_dim, device = 'cpu'):
-        self.criterion = criterion
+    def __init__(self, n_classes, adversarial_criterion, classification_criterion, latent_dim, device='cpu'):
+        self.adversarial_criterion = adversarial_criterion
+        self.classification_criterion = classification_criterion
         self.latent_dim = latent_dim
         self.device = device
 
-        self.fixed_noise = torch.randn(10, latent_dim, device=device)
+        # For visualization: one sample per class
+        self.fixed_noise = torch.randn(n_classes, latent_dim, device=device)
+        self.fixed_labels = torch.arange(n_classes, device=device)
 
     def set_discriminator(self, discriminator, discriminator_optimizer, discriminator_scheduler):
         self.discriminator = discriminator
@@ -27,76 +29,70 @@ class Trainer:
         self.generator_scheduler = generator_scheduler
 
     def fit(self, dataloader: DataLoader, num_epochs: int = 100):
-        G_losses = []
-        D_losses = []
+        G_losses, D_losses = [], []
         for epoch in range(num_epochs):
-            # For each batch in the dataloader
-            discriminator_fake_acc = []
-            discriminator_real_acc = []
-            for i, data in enumerate(dataloader, 0):
-
-                ############################
-                # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
-                ###########################
-                # Train with all-real batch
-                self.discriminator_optimizer.zero_grad()
-                # Format batch
-                real_images = data[0].to(self.device)
+            D_fake_acc, D_real_acc = [], []
+            for real_images, labels in dataloader:
+                real_images = real_images.to(self.device)
+                labels = labels.to(self.device)
                 b_size = real_images.size(0)
-                # Setting labels for real images
-                label = torch.ones((b_size,), dtype=torch.float, device=self.device)
-                # Forward pass real batch through D
-                output = self.discriminator(real_images).view(-1)
-                # Calculate loss on all-real batch
-                error_discriminator_real = self.criterion(output, label)
-                # Calculate gradients for D in backward pass
-                discriminator_real_acc.append(output.mean().item())
 
-                # Train with all-fake batch
-                # Generate batch of latent vectors
-                noise = torch.randn(b_size, self.latent_dim, device=self.device)
-                # Generate fake image batch with Generator
-                fake_images = self.generator(noise)
-                label_fake = torch.zeros((b_size,), dtype=torch.float, device=self.device)
-                # Classify all fake batch with Discriminator
-                output = self.discriminator(fake_images.detach()).view(-1)
-                # Calculate D's loss on the all-fake batch
-                error_discriminator_fake = self.criterion(output, label_fake)
-                # Calculate the gradients for this batch, accumulated (summed) with previous gradients
-                discriminator_fake_acc.append(output.mean().item())
-                # Compute error of D as sum over the fake and the real batches
-                error_discriminator = error_discriminator_real + error_discriminator_fake
-                error_discriminator.backward()
-                # Update D
+                # ---------------------
+                # 1) Update D network
+                # ---------------------
+                self.discriminator_optimizer.zero_grad()
+                # Real batch
+                rf_real, cls_real = self.discriminator(real_images)
+                valid = torch.ones(b_size, device=self.device)
+                loss_D_real = self.adversarial_criterion(rf_real, valid)
+                loss_cls_real = self.classification_criterion(cls_real, labels)
+                D_real_acc.append(rf_real.mean().item())
+
+                # Fake batch
+                noise = torch.randn(
+                    b_size, self.latent_dim, device=self.device)
+                fake_images = self.generator(noise, labels)
+                rf_fake, cls_fake = self.discriminator(fake_images.detach())
+                fake = torch.zeros(b_size, device=self.device)
+                loss_D_fake = self.adversarial_criterion(rf_fake, fake)
+                loss_cls_fake = self.classification_criterion(cls_fake, labels)
+                D_fake_acc.append(rf_fake.mean().item())
+
+                # Total D loss
+                loss_D = loss_D_real + loss_D_fake + loss_cls_real + loss_cls_fake
+                loss_D.backward()
                 self.discriminator_optimizer.step()
 
-                ############################
-                # (2) Update G network: maximize log(D(G(z)))
-                ###########################
+                # ---------------------
+                # 2) Update G network
+                # ---------------------
                 self.generator_optimizer.zero_grad()
-                # fake labels are real for generator cost
-                label = torch.ones((b_size,), dtype=torch.float, device=self.device)
-                # Since we just updated D, perform another forward pass of all-fake batch through D
-                output = self.discriminator(fake_images).view(-1)
-                # Calculate G's loss based on this output
-                error_generator = self.criterion(output, label)
-                # Calculate gradients for G
-                error_generator.backward()
-                # Update G
+                rf_fake2, cls_fake2 = self.discriminator(fake_images)
+                valid = torch.ones(b_size, device=self.device)
+                loss_G_adv = self.adversarial_criterion(rf_fake2, valid)
+                loss_G_cls = self.classification_criterion(cls_fake2, labels)
+                loss_G = loss_G_adv + loss_G_cls
+                loss_G.backward()
                 self.generator_optimizer.step()
 
-                # Output training stats
-                # Save Losses for plotting later
-                G_losses.append(error_generator.item())
-                D_losses.append(error_discriminator.item())
+                # Record losses
+                G_losses.append(loss_G.item())
+                D_losses.append(loss_D.item())
 
-            print(f"Epoch: {epoch}, discrimiantor fake error: {np.mean(discriminator_fake_acc):.3}, discriminator real acc: {np.mean(discriminator_real_acc):.3}")
+            # Scheduler step
             self.generator_scheduler.step()
             self.discriminator_scheduler.step()
 
+            print(
+                f"Epoch {epoch}: D_fake_acc={np.mean(D_fake_acc):.3f}, D_real_acc={np.mean(D_real_acc):.3f}")
+
+            # Visualize every 10 epochs
             if epoch % 10 == 0:
                 with torch.no_grad():
-                    fake_norm = self.generator(self.fixed_noise).detach().cpu()
-                    fake = denormalize_batch(fake_norm, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]).clamp(0.0, 1.0)
+                    fake_norm = self.generator(
+                        self.fixed_noise, self.fixed_labels).cpu()
+                    fake = denormalize_batch(
+                        fake_norm, mean=[0.5]*3, std=[0.5]*3).clamp(0, 1)
+                plot_images(list(fake), ncols=10)
 
-                plot_images(list(fake))
+        return {'G_losses': G_losses, 'D_losses': D_losses}
