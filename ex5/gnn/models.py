@@ -51,7 +51,7 @@ class Generator(nn.Module):
 
     def forward(self, z, y):
         # z: [B, latent_dim], y: [B] int labels
-        y_vec = self.label_emb(y)                 
-        x = torch.cat([z, y_vec], dim=1)
-        x = self.fc(x).view(-1, 256, 4, 4)
-        return self.net(x)
+        y_vec = self.label_emb(y)                 # → [B, latent_dim]
+        x = torch.cat([z, y_vec], dim=1)          # → [B, latent_dim*2]
+        x = self.fc(x).view(-1, 256, 4, 4)         # → [B,256,4,4]
+        return self.net(x)                        # → [B,3,32,32]
