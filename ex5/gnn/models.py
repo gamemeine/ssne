@@ -79,10 +79,10 @@ class VariationalAutoencoder(nn.Module):
             nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),  # -> [B, 32, 16, 16]
             nn.ReLU(True),
             nn.ConvTranspose2d(32, input_channels, kernel_size=4, stride=2, padding=1), # -> [B, input, 32, 32]
-            nn.Sigmoid()
+            nn.Tanh()
         )
 
-    def encode(self, x) -> tuple(torch.Tensor, torch.Tensor):
+    def encode(self, x):
         h = self.encoder_conv(x)
         mu = self.fc_mu(h)
         logvar = self.fc_logvar(h)

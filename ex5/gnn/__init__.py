@@ -1,2 +1,2 @@
-from .models import Generator, Discriminator
-from .trainer import Trainer
+from .models import Generator, Discriminator, VariationalAutoencoder
+from .trainer import Trainer, VAETrainer

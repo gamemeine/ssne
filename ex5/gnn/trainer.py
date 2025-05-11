@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader
 from torch.nn import CrossEntropyLoss
 from utils import denormalize_batch
 from display import plot_images
+from .models import VariationalAutoencoder
+import torch.nn.functional as F
 
 
 class Trainer:
@@ -109,7 +111,7 @@ class VAETrainer:
         self.fixed_noise_for_generation = torch.randn(64, latent_dim, device=device) 
 
     def _calculate_loss(self, x_reconstructed, x_original, mu, logvar):
-        recon_loss = F.binary_cross_entropy(x_reconstructed, x_original, reduction='sum')
+        recon_loss = F.mse_loss(x_reconstructed, x_original, reduction='sum')
 
         kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
