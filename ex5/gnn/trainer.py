@@ -1,10 +1,9 @@
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-from torch.nn import CrossEntropyLoss
-from utils import denormalize_batch
-from display import plot_images
+from tqdm import tqdm
+from utils.normalization import denormalize_batch
+from utils.display import plot_images
 
 
 class Trainer:
@@ -28,11 +27,11 @@ class Trainer:
         self.generator_optimizer = generator_optimizer
         self.generator_scheduler = generator_scheduler
 
-    def fit(self, dataloader: DataLoader, num_epochs: int = 100):
+    def fit(self, dataloader: DataLoader, num_epochs: int = 100, mean=[0.5]*3, std=[0.5]*3):
         G_losses, D_losses = [], []
         for epoch in range(num_epochs):
             D_fake_acc, D_real_acc = [], []
-            for real_images, labels in dataloader:
+            for real_images, labels in tqdm(dataloader, desc=f"Epoch {epoch}"):
                 real_images = real_images.to(self.device)
                 labels = labels.to(self.device)
                 b_size = real_images.size(0)
@@ -49,8 +48,7 @@ class Trainer:
                 D_real_acc.append(rf_real.mean().item())
 
                 # Fake batch
-                noise = torch.randn(
-                    b_size, self.latent_dim, device=self.device)
+                noise = torch.randn(b_size, self.latent_dim, device=self.device)
                 fake_images = self.generator(noise, labels)
                 rf_fake, cls_fake = self.discriminator(fake_images.detach())
                 fake = torch.zeros(b_size, device=self.device)
@@ -83,16 +81,19 @@ class Trainer:
             self.generator_scheduler.step()
             self.discriminator_scheduler.step()
 
-            print(
-                f"Epoch {epoch}: D_fake_acc={np.mean(D_fake_acc):.3f}, D_real_acc={np.mean(D_real_acc):.3f}")
+            print(f"D_fake_acc={np.mean(D_fake_acc):.3f}, D_real_acc={np.mean(D_real_acc):.3f}")
 
             # Visualize every 10 epochs
             if epoch % 10 == 0:
                 with torch.no_grad():
-                    fake_norm = self.generator(
-                        self.fixed_noise, self.fixed_labels).cpu()
-                    fake = denormalize_batch(
-                        fake_norm, mean=[0.5]*3, std=[0.5]*3).clamp(0, 1)
-                plot_images(list(fake), ncols=10)
+                    fake_norm = self.generator(self.fixed_noise, self.fixed_labels).cpu()
+                    fake = denormalize_batch(fake_norm, mean=mean, std=std).clamp(0, 1)
+                plot_images(list(fake), ncols=9)
+
+        # Final visualization
+        with torch.no_grad():
+            fake_norm = self.generator(self.fixed_noise, self.fixed_labels).cpu()
+            fake = denormalize_batch(fake_norm, mean=mean, std=std).clamp(0, 1)
+        plot_images(list(fake), ncols=9)
 
         return {'G_losses': G_losses, 'D_losses': D_losses}
