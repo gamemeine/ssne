@@ -13,7 +13,6 @@ class Trainer:
         self.latent_dim = latent_dim
         self.device = device
 
-        # For visualization: one sample per class
         self.fixed_noise = torch.randn(n_classes, latent_dim, device=device)
         self.fixed_labels = torch.arange(n_classes, device=device)
 
@@ -27,9 +26,19 @@ class Trainer:
         self.generator_optimizer = generator_optimizer
         self.generator_scheduler = generator_scheduler
 
+    def preview(self, mean=[0.5]*3, std=[0.5]*3):
+        self.generator.eval()
+        with torch.no_grad():
+            fake_norm = self.generator(self.fixed_noise, self.fixed_labels).cpu()
+            fake = denormalize_batch(fake_norm, mean=mean, std=std)
+        plot_images(list(fake), ncols=9)
+
+
     def fit(self, dataloader: DataLoader, num_epochs: int = 100, mean=[0.5]*3, std=[0.5]*3):
         G_losses, D_losses = [], []
         for epoch in range(num_epochs):
+            self.generator.train()
+
             D_fake_acc, D_real_acc = [], []
             for real_images, labels in tqdm(dataloader, desc=f"Epoch {epoch}"):
                 real_images = real_images.to(self.device)
@@ -85,15 +94,9 @@ class Trainer:
 
             # Visualize every 10 epochs
             if epoch % 10 == 0:
-                with torch.no_grad():
-                    fake_norm = self.generator(self.fixed_noise, self.fixed_labels).cpu()
-                    fake = denormalize_batch(fake_norm, mean=mean, std=std).clamp(0, 1)
-                plot_images(list(fake), ncols=9)
+                self.preview(mean=mean, std=std)
 
         # Final visualization
-        with torch.no_grad():
-            fake_norm = self.generator(self.fixed_noise, self.fixed_labels).cpu()
-            fake = denormalize_batch(fake_norm, mean=mean, std=std).clamp(0, 1)
-        plot_images(list(fake), ncols=9)
+        self.preview(mean=mean, std=std)
 
         return {'G_losses': G_losses, 'D_losses': D_losses}

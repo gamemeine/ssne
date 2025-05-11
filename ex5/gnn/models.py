@@ -31,10 +31,8 @@ class Generator(nn.Module):
     def __init__(self, n_classes, latent_dim=100):
         super().__init__()
         self.latent_dim = latent_dim
-        # embed label into same dim as z
-        self.label_emb = nn.Embedding(n_classes, n_classes)
-        # project combined (z + label) into 256×4×4
-        self.fc = nn.Linear(latent_dim + n_classes, 256*4*4)
+        self.label_emb = nn.Embedding(n_classes, latent_dim)
+        self.fc = nn.Linear(latent_dim + latent_dim, 256*4*4)
 
         self.net = nn.Sequential(
             nn.ConvTranspose2d(256, 128, 4, 2, 1), 
