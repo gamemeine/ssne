@@ -96,10 +96,11 @@ class Generator(nn.Module):
         return img * b                           # [B,3,32,32]
 
 
-class VariationalAutoencoder(nn.Module):
+class ConditionalVariationalAutoencoder(nn.Module):
     def __init__(self, input_channels, latent_dim, img_size=32):
         super().__init__()
         self.latent_dim = latent_dim
+        self.num_classes = num_classes
         self.img_size = img_size
 
         # === ENCODER ===
@@ -114,12 +115,16 @@ class VariationalAutoencoder(nn.Module):
         )
 
         # Layers fully connected 
-        self.fc_mu = nn.Linear(128 * (self.img_size // 8)**2, latent_dim)
-        self.fc_logvar = nn.Linear(128 * (self.img_size // 8)**2, latent_dim)
+        encoder_output_flat_size = 128 * (self.img_size // 8)**2
+        combined_encoder_input_size = encoder_output_flat_size + self.num_classes
+
+        self.fc_mu = nn.Linear(combined_encoder_input_size, latent_dim)
+        self.fc_logvar = nn.Linear(combined_encoder_input_size, latent_dim)
 
         # === DECODER ===
+        combined_decoder_input_size = latent_dim + self.num_classes
         self.decoder_fc_input_size = 128 * (self.img_size // 8)**2
-        self.decoder_fc = nn.Linear(latent_dim, self.decoder_fc_input_size)
+        self.decoder_fc = nn.Linear(combined_decoder_input_size, self.decoder_fc_output_size)
 
         # Convolutional layers
         self.decoder_conv_transpose = nn.Sequential(
@@ -131,10 +136,11 @@ class VariationalAutoencoder(nn.Module):
             nn.Tanh()
         )
 
-    def encode(self, x):
-        h = self.encoder_conv(x)
-        mu = self.fc_mu(h)
-        logvar = self.fc_logvar(h)
+    def encode(self, x, y_one_hot):
+        h_conv = self.encoder_conv(x)
+        h_combined = torch.cat((h_conv, y_one_hot), dim=1)
+        mu = self.fc_mu(h_combined)
+        logvar = self.fc_logvar(h_combined)
         return mu, logvar
 
     def reparameterize(self, mu, logvar):
@@ -142,13 +148,20 @@ class VariationalAutoencoder(nn.Module):
         eps = torch.randn_like(std) 
         return mu + eps * std
 
-    def decode(self, z):
-        h = self.decoder_fc(z)
+    def decode(self, z, y_one_hot):
+        zy_combined = torch.cat((z, y_one_hot), dim=1)
+        h = self.decoder_fc(zy_combined)
         h = h.view(-1, 128, self.img_size // 8, self.img_size // 8)
         return self.decoder_conv_transpose(h)
 
-    def forward(self, x):
-        mu, logvar = self.encode(x)
+    def forward(self, x, y):
+        y_one_hot = F.one_hot(y, num_classes=self.num_classes).float().to(x.device)
+
+        mu, logvar = self.encode(x, y_one_hot)
         z = self.reparameterize(mu, logvar)
-        x_reconstructed = self.decode(z)
+        x_reconstructed = self.decode(z, y_one_hot)
         return x_reconstructed, mu, logvar
+
+    def generate(self, z, y_int_labels):
+        y_one_hot = F.one_hot(y_int_labels, num_classes=self.num_classes).float().to(z.device)
+        return self.decode(z, y_one_hot)

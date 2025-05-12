@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.normalization import denormalize_batch
 from utils.display import plot_images
-from .models import VariationalAutoencoder
+from .models import ConditionalVariationalAutoencoder
 import torch.nn.functional as F
 
 
@@ -117,15 +117,21 @@ class Trainer:
         return {'G_losses': G_losses, 'D_losses': D_losses}
 
 
-class VAETrainer:
-    def __init__(self, vae_model: VariationalAutoencoder, optimizer, scheduler=None, latent_dim: int = 20, device: str = 'cpu'):
+class cVAETrainer:
+    def __init__(self, cvae_model: ConditionalVariationalAutoencoder, optimizer, num_classes: int, scheduler=None, latent_dim: int = 20, device: str = 'cpu'):
         self.model = vae_model.to(device)
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.latent_dim = latent_dim
+        self.num_classes = num_classes
         self.device = device
 
-        self.fixed_noise_for_generation = torch.randn(32, latent_dim, device=device) 
+        self.num_viz_samples = 32
+        self.fixed_noise_for_generation = torch.randn(self.num_viz_samples, latent_dim, device=device)
+
+        self.fixed_labels_for_generation = torch.arange(self.num_classes, device=device).repeat_interleave(self.num_viz_samples // self.num_classes +1)
+        self.fixed_labels_for_generation = self.fixed_labels_for_generation[:self.num_viz_samples]
+
 
     def _calculate_loss(self, x_reconstructed, x_original, mu, logvar):
         recon_loss = F.mse_loss(x_reconstructed, x_original, reduction='sum')
@@ -138,8 +144,10 @@ class VAETrainer:
     def fit(self, dataloader: DataLoader, num_epochs: int = 50, img_channels: int = 3):
         train_losses, recon_losses, kld_losses = [], [], []
         
-        fixed_real_batch, _ = next(iter(dataloader))
-        fixed_real_batch = fixed_real_batch[:16].to(self.device)
+        fixed_real_batch, fixed_labels = next(iter(dataloader))
+        num_recon_viz = 16
+        fixed_real_batch = fixed_real_batch[:num_recon_viz].to(self.device)
+        fixed_labels = fixed_labels[:num_recon_viz].to(self.device)
 
         for epoch in range(num_epochs):
             epoch_total_loss, epoch_recon_loss, epoch_kld_loss = 0.0, 0.0, 0.0
@@ -147,13 +155,15 @@ class VAETrainer:
 
             self.model.train()
             
-            for real_images, _ in tqdm(dataloader, desc=f"Epoch {epoch}"):
+            for real_images, labels in tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}"):
                 real_images = real_images.to(self.device)
+                labels = labels.to(self.device)
+
                 b_size = real_images.size(0)
 
                 self.optimizer.zero_grad()
 
-                x_reconstructed, mu, logvar = self.model(real_images)
+                x_reconstructed, mu, logvar = self.model(real_images, labels)
 
                 loss, recon_loss_val, kld_loss_val = self._calculate_loss(
                     x_reconstructed, real_images, mu, logvar
@@ -189,10 +199,10 @@ class VAETrainer:
                 f"KLD Loss: {avg_kld_loss:.4f}"
             )
 
-            if epoch % 10 == 0:
+            if epoch % 10 == 0 or epoch == num_epochs - 1:
                 self.model.eval()
                 with torch.no_grad():
-                    reconstructed_fixed, _, _ = self.model(fixed_real_batch)
+                    reconstructed_fixed, _, _ = self.model(fixed_real_batch, fixed_labels)
                     
                     comparison_images = []
                     for i in range(fixed_real_batch.size(0)):
@@ -200,16 +210,16 @@ class VAETrainer:
                         comparison_images.append(reconstructed_fixed[i])
                     
                     plot_images(
-                        [denormalize_batch(img.unsqueeze(0), mean=[0.0]*img_channels, std=[1.0]*img_channels).squeeze(0) for img in comparison_images],
+                        [denormalize_batch(img.unsqueeze(0), mean=[0.5]*img_channels, std=[0.5]*img_channels).squeeze(0) for img in comparison_images],
                         ncols=8,
                         title=f"Epoch {epoch+1}: Original & Reconstructed"
                     )
 
-                    generated_samples = self.model.decode(self.fixed_noise_for_generation)
+                    generated_samples = self.model.generate(self.fixed_noise_for_generation, self.fixed_labels_for_generation)
                     plot_images(
-                        [denormalize_batch(img.unsqueeze(0), mean=[0.0]*img_channels, std=[1.0]*img_channels).squeeze(0) for img in generated_samples],
+                        [denormalize_batch(img.unsqueeze(0), mean=[0.5]*img_channels, std=[0.5]*img_channels).squeeze(0) for img in generated_samples],
                         ncols=8,
-                        title=f"Epoch {epoch+1}: Generated Samples from Scratch"
+                        title=f"Epoch {epoch+1}: Generated Samples from Scratch (Labels: {self.fixed_labels_for_generation.cpu().numpy()[:8]}...)"
                     )
         
         return {
