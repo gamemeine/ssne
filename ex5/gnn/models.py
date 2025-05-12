@@ -1,96 +1,100 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-class Discriminator(nn.Module):
-    def __init__(self, n_classes):
+
+class ResBlock(nn.Module):
+    def __init__(self, channels):
         super().__init__()
-        self.features = nn.Sequential(
-            # 3×32×32 → 128×16×16
-            nn.Conv2d(3,   128, 4, 2, 1, bias=False),
-            nn.LeakyReLU(0.2, inplace=True),
+        self.conv1 = nn.Conv2d(channels, channels, 3, 1, 1, bias=False)
+        self.bn1 = nn.BatchNorm2d(channels)
+        self.conv2 = nn.Conv2d(channels, channels, 3, 1, 1, bias=False)
+        self.bn2 = nn.BatchNorm2d(channels)
+        self.act = nn.ReLU()
 
-            # 128×16×16 → 256×8×8
-            nn.Conv2d(128, 256, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            # 256×8×8 → 512×4×4
-            nn.Conv2d(256, 512, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(0.2, inplace=True),
-
-            nn.Flatten()  # → [B, 512*4*4]
-        )
-        feat_dim = 512 * 4 * 4
-
-        # real/fake head
-        self.adv_head = nn.Linear(feat_dim, 1)
-        # label embedding for projection
-        self.label_emb = nn.Embedding(n_classes, feat_dim)
-
-    def forward(self, x, y):
-        h = self.features(x)                    # [B, feat_dim]
-        real_logit = self.adv_head(h).view(-1)   # [B]
-        v_y = self.label_emb(y)          # [B, feat_dim]
-        proj = torch.sum(h * v_y, dim=1)   # [B]
-        return real_logit + proj                # [B]
+    def forward(self, x):
+        h = self.act(self.bn1(self.conv1(x)))
+        h = self.bn2(self.conv2(h))
+        return self.act(h + x)
 
 
 class Generator(nn.Module):
-    def __init__(self, n_classes, latent_dim=100):
+    def __init__(self, n_classes, latent_dim=128):
         super().__init__()
         self.latent_dim = latent_dim
         self.label_emb = nn.Embedding(n_classes, latent_dim)
 
-        # project z and y → 512×4×4
-        self.noise_proj = nn.Sequential(
-            nn.Linear(latent_dim, 512*4*4),
-            nn.ReLU(True)
+        # 1) FC → 256×4×4
+        self.fc = nn.Linear(latent_dim, 512*4*4)
+
+        # 2) three (ResBlock + Upsample) stacks to go 4→8→16→32
+        self.res_up1 = nn.Sequential(
+            ResBlock(512),
+            nn.Upsample(scale_factor=2, mode='nearest')
         )
-        self.label_proj = nn.Sequential(
-            nn.Linear(latent_dim, 512*4*4),
-            nn.ReLU(True)
+        self.res_up2 = nn.Sequential(
+            ResBlock(512),
+            nn.Upsample(scale_factor=2, mode='nearest')
+        )
+        self.res_up3 = nn.Sequential(
+            ResBlock(512),
+            nn.Upsample(scale_factor=2, mode='nearest')
         )
 
-        self.net = nn.Sequential(
-            # 1024×4×4 → 512×8×8
-            nn.ConvTranspose2d(1024, 512, 4, 2, 1, bias=False),
+        # 3) final BN + ReLU, then 3×3 conv → Tanh
+        self.post = nn.Sequential(
             nn.BatchNorm2d(512),
-            nn.ReLU(True),
-
-            # 512×8×8 → 256×16×16
-            nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(256),
-            nn.ReLU(True),
-
-            # 256×16×16 → 128×32×32
-            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(True),
-
-            # finalize to RGB
-            nn.Conv2d(128, 3, 3, 1, 1, bias=False),
-            nn.Tanh()
-        )
-        
-        self.brightness_head = nn.Sequential(
-            nn.Linear(latent_dim, 1),
+            nn.ReLU(),
+            nn.Conv2d(512, 3, 3, padding=1),
             nn.Tanh()
         )
 
     def forward(self, z, y):
-        # 1) shape synthesis
-        y_emb = self.label_emb(y)                       # [B, latent_dim]
-        z_feat = self.noise_proj(z).view(-1, 512, 4, 4)      # [B,512,4,4]
-        y_feat = self.label_proj(y_emb).view(-1, 512, 4, 4)  # [B,512,4,4]
-        x = torch.cat([z_feat, y_feat], dim=1)      # [B,1024,4,4]
-        img = self.net(x)                             # [B,3,32,32] in [-1,+1]
+        """
+        z: [B, latent_dim], y: [B]
+        """
+        y_emb = self.label_emb(y)       # [B, latent_dim]
+        x = z + y_emb                   # simple additive conditioning
+        x = self.fc(x).view(-1, 512, 4, 4)
+        x = self.res_up1(x)             # → 256×8×8
+        x = self.res_up2(x)             # → 256×16×16
+        x = self.res_up3(x)             # → 256×32×32
+        return self.post(x)             # → 3×32×32 in [-1,+1]
 
-        # 2) brightness factor from z
-        # [B,1,1,1] in [-1,+1]
-        b = self.brightness_head(z).view(-1, 1, 1, 1)
-        # map to [0.5, 1.5] (or choose any sensible range)
-        b = b * 0.5 + 1.0
 
-        # 3) apply it
-        return img * b                           # [B,3,32,32]
+class Discriminator(nn.Module):
+    def __init__(self, n_classes):
+        super().__init__()
+        # 1) Expand 3→128, then two ResBlock+pool stages
+        self.conv_in = nn.Conv2d(3, 256, 1)
+        self.res_dn1 = nn.Sequential(
+            ResBlock(256),
+            nn.AvgPool2d(2)    # 32→16
+        )
+        self.res_dn2 = nn.Sequential(
+            ResBlock(256),
+            nn.AvgPool2d(2)    # 16→8
+        )
+
+        # 2) two more ResBlocks at 128×8×8
+        self.res3 = ResBlock(256)
+        self.res4 = ResBlock(256)
+
+        # 3) Global sum‐pool → projection head
+        self.post_relu = nn.ReLU()
+        feat_dim = 256
+        self.adv_head = nn.Linear(feat_dim, 1)
+        self.label_emb = nn.Embedding(n_classes, feat_dim)
+
+    def forward(self, x, y):
+        x = self.conv_in(x)   # [B,128,32,32]
+        x = self.res_dn1(x)   # [B,128,16,16]
+        x = self.res_dn2(x)   # [B,128, 8, 8]
+        x = self.res3(x)      # [B,128, 8, 8]
+        x = self.res4(x)      # [B,128, 8, 8]
+        x = self.post_relu(x)
+        h = x.sum((2, 3))      # [B,128]
+        real_logit = self.adv_head(h).view(-1)
+        v_y = self.label_emb(y)
+        proj = (h * v_y).sum(1)
+        return real_logit + proj
