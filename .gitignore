@@ -231,3 +231,4 @@ pyrightconfig.json
 
 ex*/data/
 ex*/*.zip
+ex*/results/
