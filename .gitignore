@@ -233,3 +233,4 @@ ex*/data/
 ex*/*.zip
 ex*/results/
 ex*/vae_results/*
+ex*/cvae_results/*
