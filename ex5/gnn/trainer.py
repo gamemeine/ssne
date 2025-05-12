@@ -146,7 +146,8 @@ class VAETrainer:
             num_batches = 0
 
             self.model.train()
-            for real_images, _ in dataloader:
+            
+            for real_images, _ in tqdm(dataloader, desc=f"Epoch {epoch}"):
                 real_images = real_images.to(self.device)
                 b_size = real_images.size(0)
 
