@@ -125,7 +125,7 @@ class VAETrainer:
         self.latent_dim = latent_dim
         self.device = device
 
-        self.fixed_noise_for_generation = torch.randn(64, latent_dim, device=device) 
+        self.fixed_noise_for_generation = torch.randn(32, latent_dim, device=device) 
 
     def _calculate_loss(self, x_reconstructed, x_original, mu, logvar):
         recon_loss = F.mse_loss(x_reconstructed, x_original, reduction='sum')
