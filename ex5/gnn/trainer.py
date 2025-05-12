@@ -119,7 +119,7 @@ class Trainer:
 
 class cVAETrainer:
     def __init__(self, cvae_model: ConditionalVariationalAutoencoder, optimizer, num_classes: int, scheduler=None, latent_dim: int = 20, device: str = 'cpu'):
-        self.model = vae_model.to(device)
+        self.model = cvae_model.to(device)
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.latent_dim = latent_dim

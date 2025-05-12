@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 
 class Discriminator(nn.Module):
     def __init__(self, n_classes):
@@ -123,7 +125,7 @@ class ConditionalVariationalAutoencoder(nn.Module):
 
         # === DECODER ===
         combined_decoder_input_size = latent_dim + self.num_classes
-        self.decoder_fc_input_size = 128 * (self.img_size // 8)**2
+        self.decoder_fc_output_size = 128 * (self.img_size // 8)**2
         self.decoder_fc = nn.Linear(combined_decoder_input_size, self.decoder_fc_output_size)
 
         # Convolutional layers
