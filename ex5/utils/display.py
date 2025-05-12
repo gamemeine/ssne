@@ -5,9 +5,10 @@ from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from typing import Optional
 
 
-def plot_images(images: list[torch.Tensor | PIL.Image.Image], ncols: int = 5):
+def plot_images(images: list[torch.Tensor | PIL.Image.Image], ncols: int = 5, title: Optional[str] = None):
     count = len(images)
     if count == 0:
         print("No images to display.")
@@ -25,6 +26,11 @@ def plot_images(images: list[torch.Tensor | PIL.Image.Image], ncols: int = 5):
         ax.imshow(img)
         
     plt.figure(figsize=(cols * 2, rows * 2))
+
+    if title:
+        plt.suptitle(title, fontsize=14, y=1.0)
+
+
     for idx, img in enumerate(images):
         ax = plt.subplot(rows, cols, idx + 1)
         ax.axis('off')
