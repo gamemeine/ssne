@@ -97,7 +97,7 @@ class Generator(nn.Module):
 
 
 class ConditionalVariationalAutoencoder(nn.Module):
-    def __init__(self, input_channels, latent_dim, img_size=32):
+    def __init__(self, input_channels, num_classes, latent_dim, img_size=32):
         super().__init__()
         self.latent_dim = latent_dim
         self.num_classes = num_classes
