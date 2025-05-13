@@ -1,9 +1,12 @@
+import os
 import numpy as np
 import torch
+import time
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.normalization import denormalize_batch
 from utils.display import plot_images
+from .loss import HingeLoss
 
 
 class Trainer:
@@ -15,6 +18,9 @@ class Trainer:
         self.fixed_noise = torch.randn(n_classes, latent_dim, device=device)
         self.fixed_labels = torch.arange(n_classes, device=device)
 
+        self.hinge_loss = HingeLoss()
+        self.model_id = time.time()
+
     def set_discriminator(self, discriminator, discriminator_optimizer, discriminator_scheduler):
         self.discriminator = discriminator
         self.discriminator_optimizer = discriminator_optimizer
@@ -24,6 +30,11 @@ class Trainer:
         self.generator = generator
         self.generator_optimizer = generator_optimizer
         self.generator_scheduler = generator_scheduler
+
+    def save(self, path):
+        os.makedirs(path, exist_ok=True)
+        torch.save(self.generator.state_dict(), f'{path}/generator.pth')
+        torch.save(self.discriminator.state_dict(), f'{path}/discriminator.pth')
 
     def preview(self, mean=[0.5]*3, std=[0.5]*3):
         self.generator.eval()
@@ -58,24 +69,22 @@ class Trainer:
                 p_real = self.discriminator(real_images, labels)
                 D_real_probs.append(torch.sigmoid(p_real).mean().item())
 
-                valid_map = torch.ones_like(p_real)
-                loss_D_real = self.adversarial_criterion(
-                    p_real, valid_map).mean()
+                # valid_map = torch.ones_like(p_real)
+                # loss_D_real = self.adversarial_criterion(p_real, valid_map).mean()
 
                 # Fake images → patch logits
-                noise = torch.randn(
-                    b_size, self.latent_dim, device=self.device)
+                noise = torch.randn(b_size, self.latent_dim, device=self.device)
                 fake_images = self.generator(noise, labels)
 
                 p_fake = self.discriminator(fake_images.detach(), labels)
                 D_fake_probs.append(torch.sigmoid(p_fake).mean().item())
 
-                fake_map = torch.zeros_like(p_fake)
-                loss_D_fake = self.adversarial_criterion(
-                    p_fake, fake_map).mean()
+                # fake_map = torch.zeros_like(p_fake)
+                # loss_D_fake = self.adversarial_criterion(p_fake, fake_map).mean()
 
                 # Total discriminator loss
-                loss_D = loss_D_real + loss_D_fake
+                # loss_D = loss_D_real + loss_D_fake
+                loss_D = self.hinge_loss.d_loss(p_real.view(-1), p_fake.view(-1))
                 loss_D.backward()
                 self.discriminator_optimizer.step()
 
@@ -86,8 +95,9 @@ class Trainer:
 
                 # Re-run fake through D to get fresh gradients
                 p_fake2 = self.discriminator(fake_images, labels)
-                valid_map2 = torch.ones_like(p_fake2)
-                loss_G = self.adversarial_criterion(p_fake2, valid_map2).mean()
+                # valid_map2 = torch.ones_like(p_fake2)
+                # loss_G = self.adversarial_criterion(p_fake2, valid_map2).mean()
+                loss_G = self.hinge_loss.g_loss(p_fake2.view(-1))
 
                 loss_G.backward()
                 self.generator_optimizer.step()
@@ -120,6 +130,9 @@ class Trainer:
             # preview generated samples
             if epoch % 5 == 0 or epoch == num_epochs - 1:
                 self.preview(mean=mean, std=std)
+
+            # save model
+            self.save(f'./weights/{self.model_id}')
 
         # final preview
         self.preview(mean=mean, std=std)
