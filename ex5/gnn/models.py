@@ -105,19 +105,31 @@ class ConditionalVariationalAutoencoder(nn.Module):
         self.num_classes = num_classes
         self.img_size = img_size
 
+        self.final_conv_output_spatial_dim = self.img_size // 16
+
         # === ENCODER ===
         self.encoder_conv = nn.Sequential(
-            nn.Conv2d(input_channels, 32, kernel_size=4, stride=2, padding=1),  # 32x -> 16x
-            nn.ReLU(True),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),  # 16x -> 8x
-            nn.ReLU(True),
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1), # 8x -> 4x
-            nn.ReLU(True),
-            nn.Flatten() # [B, 128, 4, 4] -> [B, 128*4*4] = [B, 2048]
+            nn.Conv2d(input_channels, 64, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1), # -> x16
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Flatten()
         )
 
         # Layers fully connected 
-        encoder_output_flat_size = 128 * (self.img_size // 8)**2
+        encoder_output_flat_size = 512 * (self.final_conv_output_spatial_dim)**2
         combined_encoder_input_size = encoder_output_flat_size + self.num_classes
 
         self.fc_mu = nn.Linear(combined_encoder_input_size, latent_dim)
@@ -125,16 +137,28 @@ class ConditionalVariationalAutoencoder(nn.Module):
 
         # === DECODER ===
         combined_decoder_input_size = latent_dim + self.num_classes
-        self.decoder_fc_output_size = 128 * (self.img_size // 8)**2
+        self.decoder_fc_output_size = 512 * (self.final_conv_output_spatial_dim)**2
         self.decoder_fc = nn.Linear(combined_decoder_input_size, self.decoder_fc_output_size)
+
+        self.decoder_bn_fc = nn.BatchNorm1d(self.decoder_fc_output_size)
+        self.decoder_relu_fc = nn.LeakyReLU(0.2, inplace=True)
 
         # Convolutional layers
         self.decoder_conv_transpose = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1), # -> [B, 64, 8, 8]
-            nn.ReLU(True),
-            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),  # -> [B, 32, 16, 16]
-            nn.ReLU(True),
-            nn.ConvTranspose2d(32, input_channels, kernel_size=4, stride=2, padding=1), # -> [B, input, 32, 32]
+
+            nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.ConvTranspose2d(64, input_channels, kernel_size=4, stride=2, padding=1),
             nn.Tanh()
         )
 
@@ -153,7 +177,9 @@ class ConditionalVariationalAutoencoder(nn.Module):
     def decode(self, z, y_one_hot):
         zy_combined = torch.cat((z, y_one_hot), dim=1)
         h = self.decoder_fc(zy_combined)
-        h = h.view(-1, 128, self.img_size // 8, self.img_size // 8)
+        h = self.decoder_bn_fc(h)
+        h = self.decoder_relu_fc(h)
+        h = h.view(-1, 512, self.final_conv_output_spatial_dim, self.final_conv_output_spatial_dim)
         return self.decoder_conv_transpose(h)
 
     def forward(self, x, y):

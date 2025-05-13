@@ -134,7 +134,8 @@ class cVAETrainer:
 
 
     def _calculate_loss(self, x_reconstructed, x_original, mu, logvar):
-        recon_loss = F.mse_loss(x_reconstructed, x_original, reduction='sum')
+        # recon_loss = F.mse_loss(x_reconstructed, x_original, reduction='sum')   # L2 loss
+        recon_loss = F.l1_loss(x_reconstructed, x_original, reduction='sum')    # L1 loss
 
         kld_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
@@ -199,7 +200,7 @@ class cVAETrainer:
                 f"KLD Loss: {avg_kld_loss:.4f}"
             )
 
-            if epoch % 10 == 0 or epoch == num_epochs - 1:
+            if epoch % 20 == 0 or epoch == num_epochs - 1:
                 self.model.eval()
                 with torch.no_grad():
                     reconstructed_fixed, _, _ = self.model(fixed_real_batch, fixed_labels)
