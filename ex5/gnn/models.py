@@ -25,27 +25,27 @@ class Generator(nn.Module):
         self.label_emb = nn.Embedding(n_classes, latent_dim)
 
         # 1) FC → 256×4×4
-        self.fc = nn.Linear(latent_dim, 512*4*4)
+        self.fc = nn.Linear(latent_dim, 256*4*4)
 
         # 2) three (ResBlock + Upsample) stacks to go 4→8→16→32
         self.res_up1 = nn.Sequential(
-            ResBlock(512),
+            ResBlock(256),
             nn.Upsample(scale_factor=2, mode='nearest')
         )
         self.res_up2 = nn.Sequential(
-            ResBlock(512),
+            ResBlock(256),
             nn.Upsample(scale_factor=2, mode='nearest')
         )
         self.res_up3 = nn.Sequential(
-            ResBlock(512),
+            ResBlock(256),
             nn.Upsample(scale_factor=2, mode='nearest')
         )
 
         # 3) final BN + ReLU, then 3×3 conv → Tanh
         self.post = nn.Sequential(
-            nn.BatchNorm2d(512),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.Conv2d(512, 3, 3, padding=1),
+            nn.Conv2d(256, 3, 3, padding=1),
             nn.Tanh()
         )
 
@@ -55,7 +55,7 @@ class Generator(nn.Module):
         """
         y_emb = self.label_emb(y)       # [B, latent_dim]
         x = z + y_emb                   # simple additive conditioning
-        x = self.fc(x).view(-1, 512, 4, 4)
+        x = self.fc(x).view(-1, 256, 4, 4)
         x = self.res_up1(x)             # → 256×8×8
         x = self.res_up2(x)             # → 256×16×16
         x = self.res_up3(x)             # → 256×32×32
