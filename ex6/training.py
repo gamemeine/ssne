@@ -91,6 +91,11 @@ class Trainer:
         total_correct = 0
         total_samples = 0
         total_loss = 0
+
+        num_classes = self.model.fc.out_features # 5
+        correct_per_class = [0 for _ in range(num_classes)]
+        total_per_class = [0 for _ in range(num_classes)]
+
         with torch.no_grad():
             for batch_seqs, batch_lengths, batch_labels in val_loader:
                 batch_seqs = batch_seqs.to(self.device)
@@ -102,8 +107,28 @@ class Trainer:
                 total_correct += (preds == batch_labels).sum().item()
                 total_samples += batch_labels.size(0)
                 total_loss += loss.item() * batch_seqs.size(0)
+
+                for i in range(len(batch_labels)):
+                    label = batch_labels[i].item()
+                    pred = preds[i].item()
+                    total_per_class[label] += 1
+                    if label == pred:
+                        correct_per_class[label] += 1
+
         avg_loss = total_loss / total_samples
         accuracy = total_correct / total_samples
+
+        compositors = {0: 'bach', 1: 'beethoven', 2: 'debussy', 3: 'scarlatti', 4: 'victoria'}
+
+        print("Per-class accuracy:")
+        for i in range(num_classes):
+            author = compositors.get(i)
+            if total_per_class[i] > 0:
+                acc = correct_per_class[i] / total_per_class[i]
+                print(f"  {author}: {acc:.4f} ({correct_per_class[i]}/{total_per_class[i]})")
+            else:
+                print(f" {author}: No samples")
+
         return avg_loss, accuracy
 
     def plot_training_history(self):
