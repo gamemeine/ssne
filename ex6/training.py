@@ -32,6 +32,9 @@ class Trainer:
         self.all_train_accuracies = []
         self.all_val_losses = []
         self.all_val_accuracies = []
+        self.all_val_avg_class_accuracies = []
+
+        self.autosave_path = None
 
     def train(self, train_dl, val_dl, epochs):
         for epoch in range(epochs):
@@ -60,37 +63,32 @@ class Trainer:
             avg_loss = total_loss / total_samples
             train_acc = total_correct / total_samples
 
-            val_loss, val_acc = self.evaluate(val_dl)
+            val_loss, val_acc, val_avg_class_acc = self.evaluate(val_dl)
             self.scheduler.step(val_loss)
 
             self.all_train_losses.append(avg_loss)
             self.all_train_accuracies.append(train_acc)
             self.all_val_losses.append(val_loss)
             self.all_val_accuracies.append(val_acc)
+            self.all_val_avg_class_accuracies.append(val_avg_class_acc)
 
-            current_lr = self.optimizer.param_groups[0]['lr']
-            print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_loss:.4f} | Train Acc: {train_acc:.4f} | "
-                  f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | LR: {current_lr:.6f}")
+            if self.autosave_path and val_avg_class_acc >= max(self.all_val_avg_class_accuracies, default=0):
+                self.save_model(self.autosave_path)
 
-            # --- Early Stopping Logic ---
-            if self.early_stopping:
-                if val_loss < self.best_val_loss:
-                    self.best_val_loss = val_loss
-                    self.epochs_without_improvement = 0
-                    # Optional: Save best model
-                    torch.save(self.model.state_dict(), "best_model.pth")
-                else:
-                    self.epochs_without_improvement += 1
-                    print(f"Early stopping counter: {self.epochs_without_improvement}/{self.early_stopping_patience}")
-                    if self.epochs_without_improvement >= self.early_stopping_patience:
-                        print(f"Early stopping triggered after {epoch+1} epochs.")
-                        break
+            current_lr = self.scheduler.get_last_lr()
+            
+            print(f"Epoch {epoch+1}/{epochs} | Train Loss: {avg_loss:.4f} | Train Acc: {train_acc:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f} | Val Class Acc: {val_avg_class_acc:.4f} | LR: {current_lr[0]:.6f}")
 
     def evaluate(self, val_loader):
         self.model.eval()
         total_correct = 0
         total_samples = 0
         total_loss = 0
+
+        num_classes = self.model.fc.out_features # 5
+        correct_per_class = [0 for _ in range(num_classes)]
+        total_per_class = [0 for _ in range(num_classes)]
+
 
         num_classes = self.model.fc.out_features # 5
         correct_per_class = [0 for _ in range(num_classes)]
@@ -115,21 +113,25 @@ class Trainer:
                     if label == pred:
                         correct_per_class[label] += 1
 
+
+                for i in range(len(batch_labels)):
+                    label = batch_labels[i].item()
+                    pred = preds[i].item()
+                    total_per_class[label] += 1
+                    if label == pred:
+                        correct_per_class[label] += 1
+
         avg_loss = total_loss / total_samples
         accuracy = total_correct / total_samples
 
-        compositors = {0: 'bach', 1: 'beethoven', 2: 'debussy', 3: 'scarlatti', 4: 'victoria'}
-
-        print("Per-class accuracy:")
+        avg_class_accuracy = 0
         for i in range(num_classes):
-            author = compositors.get(i)
-            if total_per_class[i] > 0:
-                acc = correct_per_class[i] / total_per_class[i]
-                print(f"  {author}: {acc:.4f} ({correct_per_class[i]}/{total_per_class[i]})")
-            else:
-                print(f" {author}: No samples")
+            acc = correct_per_class[i] / total_per_class[i] if total_per_class[i] > 0 else 0
+            avg_class_accuracy += acc
 
-        return avg_loss, accuracy
+        avg_class_accuracy /= num_classes
+
+        return avg_loss, accuracy, avg_class_accuracy
 
     def plot_training_history(self):
         fig, ax = plt.subplots(1, 2, figsize=(16, 5))
@@ -153,7 +155,10 @@ class Trainer:
         plt.tight_layout()
         plt.show()
 
-    def save_model(self, path):
+    def save_model(self, path, verbose=True):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.save(self.model.state_dict(), path)
         print(f"Model saved to {path}")
+
+    def autosave_model(self, path):
+        self.autosave_path = path
