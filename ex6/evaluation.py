@@ -1,3 +1,5 @@
+import torch
+import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
@@ -7,7 +9,7 @@ def predict(model, val_dl, device='cpu'):
     pred_labels = []
     true_labels = []
     with torch.no_grad():
-        for seqs, lengths, labels in val_loader:
+        for seqs, lengths, labels in val_dl:
             seqs = seqs.to(device)
             lengths = lengths.to(device)
             logits = model(seqs, lengths)
@@ -16,6 +18,22 @@ def predict(model, val_dl, device='cpu'):
             true_labels.extend(labels.numpy())
 
     return pred_labels, true_labels
+
+
+def calculate_avg_class_accuracy(pred_labels, true_labels, label_values=None):
+    label_values = label_values if label_values else list(set(true_labels))
+    num_classes = len(label_values)
+    
+    class_correct = np.zeros(num_classes, dtype=int)
+    class_total = np.zeros(num_classes, dtype=int)
+
+    for pred, true in zip(pred_labels, true_labels):
+        if pred == true:
+            class_correct[pred] += 1
+        class_total[true] += 1
+
+    avg_class_accuracy = np.mean(class_correct / class_total)
+    return avg_class_accuracy, class_correct, class_total
 
 
 def plot_true_false_positives(pred_labels, true_labels, label_values = None):
